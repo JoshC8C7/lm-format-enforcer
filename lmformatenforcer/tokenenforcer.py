@@ -127,16 +127,38 @@ class TokenEnforcer:
         # Performance optimization: If we are in JSON freetext, all of the tokens that don't contain quote, or end with quote, are legal, so we take
         # their cached list. If the quote character is allowed, we only need to dynamically explore the cases where the string starts with a quote.
         # This breaks the elegance of the API, but otherwise it is a huge performance hit.
-        if isinstance(shortcut_key, tuple) and shortcut_key[0] == 'json_freetext':
+        if isinstance(shortcut_key, tuple):
             assert len(shortcut_key) == 4
-            _, cur_len, min_len, max_len = shortcut_key
-            cache = self.tokenizer_tree.json_freetext_tokens
+            key_name, cur_len, min_len, max_len = shortcut_key
 
-            min_remaining = min(cache.max_token_len, max(0, min_len - cur_len))  # no " allowed before this many chars
-            max_allowed_len = min(cache.max_token_len, max_len - cur_len)  # max new characters allowed (before ")
+            if key_name == "json_freetext":
 
-            allowed_tokens.extend(cache.lookup_allowed_tokens(min_remaining, max_allowed_len))
-            characters_to_explore = characters_to_explore.intersection(['"'])
+                cache = self.tokenizer_tree.json_freetext_tokens
+
+                min_remaining = min(cache.max_token_len,
+                                    max(0, min_len - cur_len))  # no " allowed before this many chars
+                max_allowed_len = min(cache.max_token_len, max_len - cur_len)  # max new characters allowed (before ")
+
+                # This handles everything that ends in a quote or contains an escaped quote.
+                allowed_tokens.extend(cache.lookup_allowed_tokens(min_remaining, max_allowed_len))
+
+                # Could also start with a quote - need to check those cases if the strings allowed to end already.
+                characters_to_explore = characters_to_explore.intersection(['"'])
+
+            elif key_name == "value_opening":
+
+                cache = self.tokenizer_tree.value_start_tokens
+
+                min_remaining = min(cache.max_token_len,max(0, min_len - cur_len))
+                max_allowed_len = min(cache.max_token_len, max_len - cur_len)
+
+                state.parser
+                allowed_tokens.extend(cache.lookup_allowed_tokens(min_remaining, max_allowed_len,
+                                                                  state.parser.num_consecutive_whitespaces,
+                                                                  parser.config.max_consecutive_whitespaces))
+
+                pass
+
 
         for character in characters_to_explore:
             next_parser = parser.add_character(character)

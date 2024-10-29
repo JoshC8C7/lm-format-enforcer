@@ -141,7 +141,10 @@ class JsonSchemaParser(CharacterLevelParser):
         if self.object_stack:
             current_parser = self.object_stack[-1]
             if isinstance(current_parser, StringParsingState):
-                if not current_parser.allowed_strings and current_parser.seen_opening_quote and not current_parser.seen_closing_quote and not current_parser.regex_parser:
+                print("Stringparsingstate")
+                current_parser: StringParsingState = current_parser
+                if not current_parser.allowed_strings and not current_parser.regex_parser and not current_parser.seen_closing_quote:
+
                     # Performance optimization: When we are parsing a string that is not from a list of allowed strings, most tokens
                     # are legal. The exploration can be more costly than the LM itself for large tokenizers (because this is pure python),
                     # so we signal that we are in a "freetext" mode, and reuse the allowed token list throughout the run.
@@ -150,7 +153,12 @@ class JsonSchemaParser(CharacterLevelParser):
                     max_len = current_parser.max_length or sys.maxsize
                     assert min_len <= max_len, "Invalid schema for str: min length is larger than max length"
                     if cur_len < max_len:
-                        return ('json_freetext', cur_len, min_len, max_len)
+                        if current_parser.seen_opening_quote:
+                            return ('json_freetext', cur_len, min_len, max_len)
+                        else:
+                            pass
+                            #return ('value_opening', cur_len, min_len, max_len)
+
         return None
 
 
