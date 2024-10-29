@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass, field
 import sys
 from typing import Callable, Dict, Hashable, List, Optional, Tuple, Union
@@ -51,7 +52,13 @@ class TokenEnforcer:
         self.eos_token_id = tokenizer_data.eos_token_id
         self.regular_tokens = tokenizer_data.regular_tokens
         self.allowed_token_cache: Dict[Hashable, List[int]] = {}
-        
+
+        if os.getenv("SUPERFAST_MODE", False):
+            print("SUPERFAST!")
+            for token_idx, decoded, _ in self.regular_tokens:
+                if decoded == '"':
+                    self.allowed_token_cache["superfast"] = [token_idx]
+
         config = CharacterLevelParserConfig(alphabet=tokenizer_data.tokenizer_alphabet)
         parser.config = config
 
