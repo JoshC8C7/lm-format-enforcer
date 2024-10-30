@@ -54,7 +54,6 @@ class TokenEnforcer:
         self.allowed_token_cache: Dict[Hashable, List[int]] = {}
 
         if os.getenv("SUPERFAST_MODE", "0") in ["1", "true", "True"]:
-            print("SUPERFASTx!", os.getenv("SUPERFAST_MODE", "0"))
             for token_idx, decoded, _ in self.regular_tokens:
                 if decoded == '"':
                     self.allowed_token_cache["superfast"] = [token_idx]
