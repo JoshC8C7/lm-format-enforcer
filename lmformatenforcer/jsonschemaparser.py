@@ -160,7 +160,7 @@ class JsonSchemaParser(CharacterLevelParser):
             if isinstance(current_parser, StringParsingState):
                 if not current_parser.allowed_strings and not current_parser.seen_opening_quote and not current_parser.regex_parser:
 
-                    if os.getenv("SUPERFAST_MODE", False):
+                    if os.getenv("SUPERFAST_MODE", "0") in ["1", "true", "True"]:
                         return "superfast"
 
                     cur_len = len(current_parser.parsed_string)
