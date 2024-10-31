@@ -48,7 +48,6 @@ class JsonSchemaParser(CharacterLevelParser):
             self.context.alphabet_without_quotes = self.config.alphabet.replace('"', '')
 
 
-        print("VARCHECK: ", os.getenv("SUPERFAST_MODE"), os.getenv("LMFE_MAX_CONSECUTIVE_WHITESPACE"))
 
         self.num_consecutive_whitespaces = num_consecutive_whitespaces
         if existing_stack is None:
