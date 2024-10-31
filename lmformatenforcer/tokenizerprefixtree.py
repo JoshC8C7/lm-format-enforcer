@@ -122,7 +122,13 @@ class JsonFreetextTokenCache:
         del self.token_num_to_str
 
 
-
+def count_chars(s, on_right=False):
+    if on_right:
+        stripped = s.rstrip("\\")
+    else:
+        stripped = s.lstrip("\\")
+    count = len(s) - len(stripped)
+    return count % 2 == 0 and count % 4 != 0
 
 class ValueStartCache:
     """
@@ -134,38 +140,42 @@ class ValueStartCache:
     """
 
     def __init__(self) -> None:
-        self.token_num_to_str: Dict[int, str] = {}
+        self.token_num_to_str: Dict[int, tuple[str, int, bool]] = {}
         self.allowlist_cache: Dict[Tuple[int, int, int], Tuple[int, ...]] = {}
         self.max_token_len = 0
-        self.tokens_length_cache = StringLengthTokenCache()
 
     def add_token(self, token_str: str, token_int: int):
         assert not self.allowlist_cache, "Cannot add more tokens after allowlists were precalculated"
-        #Allowed patterns: <whitespace*><quote?><*? fulfilling allowed length and not containing a quote><quote unless it was backslashed?><whitespace*>
+        #Allowed patterns: <whitespace*><quote?><*? fulfilling allowed length and not containing a quote><quote unless it was backslashed?>
 
         stripped_token_str = token_str.strip(WHITESPACE_CHARACTERS)
 
-        if stripped_token_str == '""':  # Special case
-            self.token_num_to_str[token_int] = token_str
-            return
-
-        if stripped_token_str[0] != '"':
+        if not stripped_token_str or stripped_token_str[0] != '"':
             return
         else:
+            if stripped_token_str == '""':  # Special case
+                self.token_num_to_str[token_int] = (token_str, 0, True)
+                return
+
             stripped_token_str = stripped_token_str[1:]
 
+        ends_with_quote = False
+
         # From here, allowed pattern is any non-overlength-json-string, and an optional non-backslashed quote. (If it is backslashed its just part of the json string)
+        if len(stripped_token_str) > 2 and stripped_token_str[-1] == '"' and stripped_token_str[-2] == '\\':
+            #if number of backslashes before " is multiple of 2 but not 4 then its escaped and part of json string we need to check.
+            num_backslashes =  count_chars(stripped_token_str, on_right=True)
+            if num_backslashes % 2 == 0 and num_backslashes % 4 != 0:
+                # The " is NOT escaped, we can strip it
+                stripped_token_str = stripped_token_str[:-1]
+                ends_with_quote = True
+            #else: pass - it  IS escaped and should be counted as part of the string check below.
 
-        if len(stripped_token_str) > 2 and stripped_token_str[-1] == '"' :
-            #if number of backslashes before " is multiple of 2 but not 4 then its escaped and part of json string..
-            pass
+        # From here, allowed pattern is any non-overlength-json-string.
 
-
-
-        has_non_trailing_backslash = "\\" in token_str[:-1]
         has_quote_before_end = '"' in token_str[0:-1]
         has_newline = "\n" in token_str or "\r" in token_str
-        if has_non_trailing_backslash or has_quote_before_end or has_newline:
+        if has_quote_before_end or has_newline:
             try:
                 json.loads(f'"{token_str}"')
             except json.decoder.JSONDecodeError:
@@ -178,9 +188,9 @@ class ValueStartCache:
             # TODO: Should we instead ALWAYS allow them?
             return
 
-        self.token_num_to_str[token_int] = token_str
+        self.token_num_to_str[token_int] = (token_str, len(stripped_token_str), ends_with_quote)
 
-    def lookup_allowed_tokens(self, min_remaining: int, max_len: int, num_consecutive_whitespaces: int) -> Tuple[int, ...]:
+    def lookup_allowed_tokens(self, min_remaining: int, max_len: int, num_consecutive_whitespaces: int, max_allowed_whitespaces: int) -> Tuple[int, ...]:
         """
         Get the list of tokens that are allowed within a JSON string, such that:
         1. all candidate tokens are at most `max_len` characters long (excluding the trailing quote), and
@@ -188,10 +198,18 @@ class ValueStartCache:
         """
         cache_key = (min_remaining, max_len, num_consecutive_whitespaces)
         if cache_key not in self.allowlist_cache:
-            tokens = self.tokens_length_cache.get_indices_between_length(-1, max_len)
-            self.allowlist_cache[cache_key] = tuple(tokens)
-
-        #todo com3 make sure there arent too many whitespaces at the start
+            # ensure not too much whitespace at start
+            allowed = []
+            for token_id, val in self.token_num_to_str.items():
+                (token_str, inner_length, ends_with_quote) = val
+                if count_chars(token_str, on_right=False) > (max_allowed_whitespaces - num_consecutive_whitespaces):
+                    continue
+                if inner_length > max_len:
+                    continue
+                if ends_with_quote and inner_length < min_remaining:
+                    continue
+                allowed.append(token_id)
+            self.allowlist_cache[cache_key] = tuple(allowed)
 
         print("returning freetext cache: ", len(self.allowlist_cache[cache_key]))
         return self.allowlist_cache[cache_key]
@@ -220,6 +238,7 @@ class TokenizerPrefixTree:
         self.tokens_to_strs = {token_idx: token_str for token_idx, token_str, _ in regular_tokens}
         for token_idx, decoded, is_new_word in regular_tokens:
             self._add_token_to_tree(decoded, token_idx, self.root)
+            self.value_start_tokens.add_token(decoded, token_idx)
             self.json_freetext_tokens.add_token(decoded, token_idx)
             if is_new_word:
                 self.new_word_tokens.add(token_idx)

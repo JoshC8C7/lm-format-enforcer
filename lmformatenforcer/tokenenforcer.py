@@ -3,6 +3,7 @@ import sys
 from typing import Callable, Dict, Hashable, List, Optional, Tuple
 import logging
 
+from . import JsonSchemaParser
 from .exceptions import LMFormatEnforcerException
 from .characterlevelparser import CharacterLevelParser, ForceStopParser, CharacterLevelParserConfig
 from .tokenizerprefixtree import TokenizerPrefixTree, TokenizerPrefixTreeNode
@@ -142,7 +143,6 @@ class TokenEnforcer:
                 # This handles everything that ends in a quote or contains an escaped quote.
                 allowed_tokens.extend(cache.lookup_allowed_tokens(min_remaining, max_allowed_len))
 
-                # Could also start with a quote - need to check those cases if the strings allowed to end already.
                 characters_to_explore = characters_to_explore.intersection(['"'])
 
             elif key_name == "value_opening":
@@ -152,12 +152,18 @@ class TokenEnforcer:
                 min_remaining = min(cache.max_token_len,max(0, min_len - cur_len))
                 max_allowed_len = min(cache.max_token_len, max_len - cur_len)
 
-                state.parser
-                allowed_tokens.extend(cache.lookup_allowed_tokens(min_remaining, max_allowed_len,
-                                                                  state.parser.num_consecutive_whitespaces,
-                                                                  parser.config.max_consecutive_whitespaces))
+                assert isinstance(parser, JsonSchemaParser)
 
-                pass
+                newly_allowed = cache.lookup_allowed_tokens(min_remaining, max_allowed_len,
+                                                                  parser.num_consecutive_whitespaces,
+                                                                  parser.config.max_consecutive_whitespaces)
+
+                allowed_tokens.extend(newly_allowed)
+
+                print("EXTENDING WITH THESE ALLOWED TOKENS: ", len(newly_allowed), newly_allowed)
+
+                parser = parser.add_character('"')
+                characters_to_explore = characters_to_explore.intersection(['"'])
 
 
         for character in characters_to_explore:

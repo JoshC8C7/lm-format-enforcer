@@ -156,8 +156,7 @@ class JsonSchemaParser(CharacterLevelParser):
                         if current_parser.seen_opening_quote:
                             return ('json_freetext', cur_len, min_len, max_len)
                         else:
-                            pass
-                            #return ('value_opening', cur_len, min_len, max_len)
+                            return ('value_opening', cur_len, min_len, max_len)
 
         return None
 
