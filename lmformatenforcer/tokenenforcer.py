@@ -58,8 +58,7 @@ class TokenEnforcer:
                 if decoded == '"':
                     self.allowed_token_cache["superfast"] = [token_idx]
 
-        config = CharacterLevelParserConfig(alphabet=tokenizer_data.tokenizer_alphabet)
-        parser.config = config
+        parser.config.alphabet = tokenizer_data.tokenizer_alphabet
 
     def get_allowed_tokens(self, token_sequence: List[int]) -> List[int]:
         """
@@ -163,7 +162,6 @@ class TokenEnforcer:
             new_characters = new_decoded[len(prev_decoded):]
 
             if len(new_characters) == 1 and self.tokenizer_tree.tokens_to_strs.get(token_sequence[-2]) == '�' and self.tokenizer_tree.tokens_to_strs[new_token] == '�':
-                print("TRIGGERED")
                 decoded_unicode_char = self.decoder(token_sequence[-2:])
                 new_characters = 'X'*len(decoded_unicode_char)
 
